@@ -42,16 +42,6 @@ def main(output, render, view, format, flag_remote, flag_tags,
         group='heads', shape='box', color='black', style='filled', fontcolor='white',
     ))
 
-    # subgraph for remote heads
-    remote_heads = Digraph(node_attr=dict(
-        group='remote_heads', shape='box', color='grey', style='filled', fontcolor='white',
-    ))
-
-    # subgraph for tags
-    tags = Digraph(node_attr=dict(
-        group='tags', shape='cds', color='#87f542', style='filled', fontcolor='black',
-    ))
-
     # one subgraph per branch when using -g, otherwise just a funny
     # container for a single subgraph.
     commits = []
@@ -94,11 +84,19 @@ def main(output, render, view, format, flag_remote, flag_tags,
             for parent in commit.parents:
                 commit_links.add((_shortref(commit), _shortref(parent)))
 
-    for sub in commits:
-        graph.subgraph(sub)
+    if gather != 'free':
+        for sub in commits:
+            graph.subgraph(sub)
+
     graph.subgraph(heads)
 
     if flag_remote:
+        # subgraph for remote heads
+        remote_heads = Digraph(node_attr=dict(
+            group='remote_heads', shape='box', color='grey', style='filled',
+            fontcolor='white',
+        ))
+
         for remote in repo.remotes:
             if remote.name in exclude_remote:
                 continue
@@ -109,6 +107,12 @@ def main(output, render, view, format, flag_remote, flag_tags,
         graph.subgraph(remote_heads)
 
     if flag_tags:
+        # subgraph for tags
+        tags = Digraph(node_attr=dict(
+            group='tags', shape='cds', color='#87f542', style='filled',
+            fontcolor='black',
+        ))
+
         for tag in repo.tags:
             if tag.name in exclude_tag:
                 continue
