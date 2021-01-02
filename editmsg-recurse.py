@@ -2,6 +2,12 @@ import click
 import git
 
 
+# XXX: this is wrong. It will only modify the parents of one commit,
+# so if there were multiple commits with the target as a parent the
+# resulting repository history will not be correct.
+#
+# Or maybe not: git-revise simply refuses to edit a commit in this
+# situation, and git-rebase linearizes the history.
 def replace(commit, target, seen=None, **kwargs):
     '''update commit <target>
 
@@ -13,18 +19,16 @@ def replace(commit, target, seen=None, **kwargs):
     if seen is None:
         seen = set()
 
-    if commit in seen:
-        return commit
-
     seen.add(commit)
 
     if commit == target:
         new = commit.replace(**kwargs)
         return new
 
-    parents = list(commit.parents)
-    for i, parent in enumerate(parents):
-        parents[i] = replace(parent, target=target, seen=seen, **kwargs)
+    parents = [
+        replace(parent, target=target, seen=seen, **kwargs)
+        for parent in commit.parents
+    ]
 
     return commit.replace(parents=parents)
 
