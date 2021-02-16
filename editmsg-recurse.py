@@ -2,7 +2,7 @@ import click
 import git
 
 
-def replace(commit, target=None, seen=None, **kwargs):
+def replace(commit, target, seen=None, **kwargs):
     '''update commit <target>
 
     traverse tree looking for target, then make any requested changes.
@@ -13,10 +13,10 @@ def replace(commit, target=None, seen=None, **kwargs):
     if seen is None:
         seen = set()
 
-    if commit.hexsha in seen:
+    if commit in seen:
         return commit
 
-    seen.add(commit.hexsha)
+    seen.add(commit)
 
     if commit == target:
         new = commit.replace(**kwargs)
@@ -31,15 +31,15 @@ def replace(commit, target=None, seen=None, **kwargs):
 
 @click.command()
 @click.option('-m', '--message', required=True)
-@click.argument('rev')
-def main(message, rev):
+@click.argument('target')
+def main(message, target):
     repo = git.Repo()
     branch = repo.active_branch
-    rev = repo.commit(rev)
+    target = repo.commit(target)
     cur = repo.head.commit
 
     print('old:', branch.commit)
-    new = replace(cur, target=rev, message=message)
+    new = replace(cur, target, message=message)
     branch.set_commit(new)
     print('new:', branch.commit)
 
