@@ -2,22 +2,6 @@ import click
 import git
 
 
-def clone_commit(old, **kwargs):
-    md = dict(
-        message=old.message,
-        parent_commits=old.parents,
-        author=old.author,
-        committer=old.committer,
-        author_date=old.authored_datetime,
-        commit_date=old.committed_datetime
-    )
-
-    md.update(kwargs)
-
-    return git.Commit.create_from_tree(
-        old.repo, old.tree, **md)
-
-
 def replace(commit, target=None, seen=None, **kwargs):
     '''update commit <target>
 
@@ -35,14 +19,14 @@ def replace(commit, target=None, seen=None, **kwargs):
     seen.add(commit.hexsha)
 
     if commit == target:
-        new = clone_commit(commit, **kwargs)
+        new = commit.replace(**kwargs)
         return new
 
     parents = list(commit.parents)
     for i, parent in enumerate(parents):
         parents[i] = replace(parent, target=target, seen=seen, **kwargs)
 
-    return clone_commit(commit, parent_commits=parents)
+    return commit.replace(parents=parents)
 
 
 @click.command()
