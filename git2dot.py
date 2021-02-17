@@ -10,8 +10,8 @@ from graphviz import Digraph
 @click.option('-v', '--view', is_flag=True)
 @click.option('-f', '--format', default='svg')
 @click.option('-m', '--use-message', is_flag=True)
-@click.option('--remote/--no-remote', 'flag_remote')
-@click.option('--tags/--no-tags', 'flag_tags')
+@click.option('--remote/--no-remote', '-R', 'flag_remote')
+@click.option('--tags/--no-tags', '-t', 'flag_tags')
 @click.option('--rankdir', default='TB')
 def main(output, render, view, format, flag_remote, flag_tags,
          rankdir, use_message):
@@ -39,13 +39,15 @@ def main(output, render, view, format, flag_remote, flag_tags,
 
     tags = Digraph()
     tags.node_attr = dict(
-        group='tags', shape='cds', color='green', style='filled', fontcolor='black',
+        group='tags', shape='cds', color='#87f542', style='filled', fontcolor='black',
     )
 
     branch_links = []
     commit_links = []
+    tag_links = []
 
     for head in repo.heads:
+        print ('// HEAD', head.name)
         heads.node(head.name)
         branch_links.append((head.name, head.commit.hexsha[:10]))
 
@@ -78,14 +80,21 @@ def main(output, render, view, format, flag_remote, flag_tags,
         graph.subgraph(remote_heads)
 
     if flag_tags:
+        compass = 's' if rankdir in ['LR', 'RL'] else 'e'
         for tag in repo.tags:
             tags.node(tag.name)
-            branch_links.append((tag.name, f'{tag.commit.hexsha[:10]}:s'))
+            tag_links.append((tag.name, f'{tag.commit.hexsha[:10]}:{compass}'))
         graph.subgraph(tags)
 
-    with graph.subgraph() as sub:
-        sub.edge_attr = dict(style='dashed')
-        sub.edges(branch_links)
+    if branch_links:
+        with graph.subgraph() as sub:
+            sub.edge_attr = dict(style='dashed')
+            sub.edges(branch_links)
+
+    if tag_links:
+        with graph.subgraph() as sub:
+            sub.edge_attr = dict(style='dashed')
+            sub.edges(tag_links)
 
     graph.edges(commit_links)
 
