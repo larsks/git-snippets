@@ -1,4 +1,3 @@
-This code assumes that [gitpython-developers/Gitpyhon#1124][1124] has
-merged.
+This code requires [Gitpyhon][] version 3.14 or later.
 
-[1124]: https://github.com/gitpython-developers/GitPython/pull/1124
+[gitpython]: https://github.com/gitpython-developers/GitPython
