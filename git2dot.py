@@ -10,11 +10,12 @@ from graphviz import Digraph
 @click.option('-v', '--view', is_flag=True)
 @click.option('-f', '--format', default='svg')
 @click.option('-m', '--use-message', is_flag=True)
+@click.option('-g', '--gather-by-branch', is_flag=True)
 @click.option('--remote/--no-remote', '-R', 'flag_remote')
 @click.option('--tags/--no-tags', '-t', 'flag_tags')
 @click.option('--rankdir', default='TB')
 def main(output, render, view, format, flag_remote, flag_tags,
-         rankdir, use_message):
+         rankdir, use_message, gather_by_branch):
     if (render or view) and not output:
         raise click.ClickException('--render and --view require --output')
 
@@ -24,8 +25,7 @@ def main(output, render, view, format, flag_remote, flag_tags,
     graph = Digraph(name='git', format='svg')
     graph.attr(rankdir=rankdir)
 
-    commits = Digraph()
-    commits.node_attr['group'] = 'commits'
+    commits = []
 
     heads = Digraph()
     heads.node_attr = dict(
@@ -47,21 +47,26 @@ def main(output, render, view, format, flag_remote, flag_tags,
     tag_links = []
 
     for head in repo.heads:
-        print ('// HEAD', head.name)
         heads.node(head.name)
         branch_links.append((head.name, head.commit.hexsha[:10]))
+
+        if gather_by_branch or not commits:
+            sub = Digraph()
+            sub.node_attr = dict(group=f'{head.name}_commits')
+            commits.append(sub)
+        elif not gather_by_branch:
+            sub = commits[0]
 
         for commit in [head.commit] + list(head.commit.traverse()):
             if commit in seen:
                 continue
 
-            args = dict(name=commit.hexsha[:10],
-                        tooltip=commit.message.splitlines()[0])
+            args = dict(tooltip=commit.message.splitlines()[0])
 
             if use_message:
                 msg = commit.message.splitlines()[0]
                 args['label'] = msg
-            commits.node(**args)
+            sub.node(commit.hexsha[:10], **args)
             seen.add(commit)
 
             for parent in commit.parents:
@@ -69,7 +74,8 @@ def main(output, render, view, format, flag_remote, flag_tags,
                     continue
                 commit_links.append((commit.hexsha[:10], parent.hexsha[:10]))
 
-    graph.subgraph(commits)
+    for sub in commits:
+        graph.subgraph(sub)
     graph.subgraph(heads)
 
     if flag_remote:
@@ -80,10 +86,9 @@ def main(output, render, view, format, flag_remote, flag_tags,
         graph.subgraph(remote_heads)
 
     if flag_tags:
-        compass = 's' if rankdir in ['LR', 'RL'] else 'e'
         for tag in repo.tags:
             tags.node(tag.name)
-            tag_links.append((tag.name, f'{tag.commit.hexsha[:10]}:{compass}'))
+            tag_links.append((tag.name, f'{tag.commit.hexsha[:10]}'))
         graph.subgraph(tags)
 
     if branch_links:
