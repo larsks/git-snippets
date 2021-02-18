@@ -11,11 +11,14 @@ from graphviz import Digraph
 @click.option('-f', '--format', default='svg')
 @click.option('-m', '--use-message', is_flag=True)
 @click.option('-g', '--gather-by-branch', is_flag=True)
+@click.option('--exclude-remote', '--xr', multiple=True, default=[])
+@click.option('--exclude-branch', '--xb', multiple=True, default=[])
 @click.option('--remote/--no-remote', '-R', 'flag_remote')
 @click.option('--tags/--no-tags', '-t', 'flag_tags')
 @click.option('--rankdir', default='TB')
 def main(output, render, view, format, flag_remote, flag_tags,
-         rankdir, use_message, gather_by_branch):
+         rankdir, use_message, gather_by_branch,
+         exclude_remote, exclude_branch):
     if (render or view) and not output:
         raise click.ClickException('--render and --view require --output')
 
@@ -47,6 +50,9 @@ def main(output, render, view, format, flag_remote, flag_tags,
     tag_links = []
 
     for head in repo.heads:
+        if head.name in exclude_branch:
+            continue
+
         heads.node(head.name)
         branch_links.append((head.name, head.commit.hexsha[:10]))
 
@@ -80,6 +86,9 @@ def main(output, render, view, format, flag_remote, flag_tags,
 
     if flag_remote:
         for remote in repo.remotes:
+            if remote.name in exclude_remote:
+                continue
+
             for ref in remote.refs:
                 remote_heads.node(ref.name)
                 branch_links.append((ref.name, ref.commit.hexsha[:10]))
