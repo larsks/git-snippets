@@ -2,6 +2,7 @@ import click
 import git
 
 from graphviz import Digraph
+from itertools import chain
 
 
 @click.command()
@@ -10,75 +11,88 @@ from graphviz import Digraph
 @click.option('-v', '--view', is_flag=True)
 @click.option('-f', '--format', default='svg')
 @click.option('-m', '--use-message', is_flag=True)
-@click.option('-g', '--gather-by-branch', is_flag=True)
+@click.option('-g', '--gather', type=click.Choice(['free', 'commit', 'branch']),
+              default='free')
+@click.option('--shortref-len', default=10)
 @click.option('--exclude-remote', '--xr', multiple=True, default=[])
+@click.option('--exclude-tag', '--xt', multiple=True, default=[])
 @click.option('--exclude-branch', '--xb', multiple=True, default=[])
 @click.option('--remote/--no-remote', '-R', 'flag_remote')
 @click.option('--tags/--no-tags', '-t', 'flag_tags')
 @click.option('--rankdir', default='TB')
 def main(output, render, view, format, flag_remote, flag_tags,
-         rankdir, use_message, gather_by_branch,
-         exclude_remote, exclude_branch):
+         rankdir, use_message, gather, shortref_len,
+         exclude_remote, exclude_tag, exclude_branch):
+
+    def _shortref(ref):
+        return ref.hexsha[:shortref_len]
+
     if (render or view) and not output:
         raise click.ClickException('--render and --view require --output')
 
     repo = git.Repo()
     seen = set()
 
-    graph = Digraph(name='git', format='svg')
-    graph.attr(rankdir=rankdir)
+    graph = Digraph(name='git', format='svg', graph_attr=dict(
+        rankdir=rankdir
+    ))
 
+    # subgraph for local branch heads
+    heads = Digraph(node_attr=dict(
+        group='heads', shape='box', color='black', style='filled', fontcolor='white',
+    ))
+
+    # subgraph for remote heads
+    remote_heads = Digraph(node_attr=dict(
+        group='remote_heads', shape='box', color='grey', style='filled', fontcolor='white',
+    ))
+
+    # subgraph for tags
+    tags = Digraph(node_attr=dict(
+        group='tags', shape='cds', color='#87f542', style='filled', fontcolor='black',
+    ))
+
+    # one subgraph per branch when using -g, otherwise just a funny
+    # container for a single subgraph.
     commits = []
 
-    heads = Digraph()
-    heads.node_attr = dict(
-        group='heads', shape='box', color='black', style='filled', fontcolor='white',
-    )
-
-    remote_heads = Digraph()
-    remote_heads.node_attr = dict(
-        group='remote_heads', shape='box', color='grey', style='filled', fontcolor='white',
-    )
-
-    tags = Digraph()
-    tags.node_attr = dict(
-        group='tags', shape='cds', color='#87f542', style='filled', fontcolor='black',
-    )
-
-    branch_links = []
-    commit_links = []
-    tag_links = []
+    branch_links = set()
+    commit_links = set()
+    tag_links = set()
 
     for head in repo.heads:
         if head.name in exclude_branch:
             continue
 
         heads.node(head.name)
-        branch_links.append((head.name, head.commit.hexsha[:10]))
+        branch_links.add((head.name, _shortref(head.commit)))
 
-        if gather_by_branch or not commits:
-            sub = Digraph()
-            sub.node_attr = dict(group=f'{head.name}_commits')
+        if gather == 'branch':
+            sub = Digraph(node_attr=dict(group=f'{head.name}_commits'))
             commits.append(sub)
-        elif not gather_by_branch:
+        elif not commits and gather == 'commit':
+            sub = Digraph(node_attr=dict(group='commits'))
+            commits.append(sub)
+        elif not commits and gather == 'free':
+            sub = graph
+            commits.append(sub)
+        else:
             sub = commits[0]
 
-        for commit in [head.commit] + list(head.commit.traverse()):
+        for commit in chain([head.commit], head.commit.traverse()):
             if commit in seen:
                 continue
+            seen.add(commit)
 
             args = dict(tooltip=commit.message.splitlines()[0])
 
             if use_message:
                 msg = commit.message.splitlines()[0]
                 args['label'] = msg
-            sub.node(commit.hexsha[:10], **args)
-            seen.add(commit)
+            sub.node(_shortref(commit), **args)
 
             for parent in commit.parents:
-                if (commit, parent) in seen:
-                    continue
-                commit_links.append((commit.hexsha[:10], parent.hexsha[:10]))
+                commit_links.add((_shortref(commit), _shortref(parent)))
 
     for sub in commits:
         graph.subgraph(sub)
@@ -91,23 +105,24 @@ def main(output, render, view, format, flag_remote, flag_tags,
 
             for ref in remote.refs:
                 remote_heads.node(ref.name)
-                branch_links.append((ref.name, ref.commit.hexsha[:10]))
+                branch_links.add((ref.name, _shortref(ref.commit)))
         graph.subgraph(remote_heads)
 
     if flag_tags:
         for tag in repo.tags:
+            if tag.name in exclude_tag:
+                continue
+
             tags.node(tag.name)
-            tag_links.append((tag.name, f'{tag.commit.hexsha[:10]}'))
+            tag_links.add((tag.name, _shortref(tag.commit)))
         graph.subgraph(tags)
 
     if branch_links:
-        with graph.subgraph() as sub:
-            sub.edge_attr = dict(style='dashed')
+        with graph.subgraph(edge_attr=dict(style='dashed')) as sub:
             sub.edges(branch_links)
 
     if tag_links:
-        with graph.subgraph() as sub:
-            sub.edge_attr = dict(style='dashed')
+        with graph.subgraph(edge_attr=dict(style='dashed')) as sub:
             sub.edges(tag_links)
 
     graph.edges(commit_links)
