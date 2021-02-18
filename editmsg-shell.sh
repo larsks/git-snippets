@@ -20,6 +20,12 @@ if [[ $branch_name = "HEAD" ]]; then
 	exit 1
 fi
 
+# check for merge commits
+if ! git log --format=%p "$target"..HEAD | awk 'NF>1 {exit 1}'; then
+	echo "ERROR: this history contains a merge commit" >&2
+	exit 1
+fi
+
 tmpfile=$(mktemp commitXXXXXX)
 trap "rm -f $tmpfile" EXIT
 
