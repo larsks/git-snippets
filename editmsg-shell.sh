@@ -1,58 +1,43 @@
 #!/bin/sh
 
-
-target="$1"
-message="${2:-Found it}"
-
-if ! target=$(git rev-parse --verify "$target"); then
-	echo "ERROR: invalid reference: $target" >&2
+die() {
+	echo "ERROR: $*" >&2
 	exit 1
-fi
+}
 
-if ! git merge-base --is-ancestor "$target" HEAD > /dev/null; then
-	echo "ERROR: $target is not an ancestor of current HEAD" >&2
-	exit 1
-fi
+# get the current branch name
+branch=$(git rev-parse --symbolic-full-name HEAD)
+[[ $branch = HEAD ]] && die "unable to determine branch name"
 
-branch_name="$(git rev-parse --symbolic-full-name HEAD)"
-if [[ $branch_name = "HEAD" ]]; then
-	echo "ERROR: unable to determine current branch" >&2
-	exit 1
-fi
+# git the full commit id of our target commit (this allows us to
+# specify the target as a short commit id, or as something like
+# `HEAD~3` or `:/interesting`.
+oldref=$(git rev-parse --verify "$1") || die "invalid reference: $1"
+
+# verify that target is an ancestor of current HEAD
+git merge-base --is-ancestor $oldref HEAD ||
+	die "$1 ($oldref) is not an ancestor of current HEAD"
 
 # check for merge commits
-if ! git log --format=%p "$target"..HEAD | awk 'NF>1 {exit 1}'; then
-	echo "ERROR: this history contains a merge commit" >&2
-	exit 1
-fi
+git log --format='%p' $oldref..HEAD | awk 'NF>1 {exit 1}' ||
+	die "history contains one or more merge commits"
 
-tmpfile=$(mktemp commitXXXXXX)
-trap "rm -f $tmpfile" EXIT
+# generate a replacement commit object, reading the new commit message
+# from stdin.
+newref=$(
+(git cat-file -p $oldref | sed '/^$/q'; cat) |
+	git hash-object -t commit --stdin -w
+)
 
-# replace message and write new commit object to database
-# saving hash in tmpfile
-(
-git cat-file -p "$target" | sed '/^$/Q'
-printf "\n%s" "$message"
-) | git hash-object -t commit --stdin -w > $tmpfile
-
-oldhash=$target
-newhash=$(cat $tmpfile)
-echo "$oldhash -> $newhash"
-
-# iterate over every commit between HEAD and target (in reverse)
-# replacing parent with new parent
-git rev-list "$target"..HEAD | tac | while read rev; do
-	[[ $rev = $target ]] && continue
-
-	newhash=$(git cat-file -p $rev | tee 1.txt |
-		sed "s/parent $oldhash/parent $newhash/" | tee 2.txt |
-		git hash-object -t commit --stdin -w)
-	oldhash=$rev
-
-	echo "$oldhash -> $newhash"
-	echo $newhash > $tmpfile
+# iterate over commits between our target commit and HEAD in
+# reverse order, replacing parent points with updated commit objects
+for rev in $(git rev-list --reverse ${oldref}..HEAD); do
+  newref=$(git cat-file -p $rev |
+    sed "s/parent $oldref/parent $newref/" |
+    git hash-object -t commit --stdin -w)
+  oldref=$rev
 done
 
-# update branch pointer
-git update-ref $branch_name $(cat $tmpfile)
+# update the branch pointer to the head of the modified tree
+git update-ref $branch $newref
+
