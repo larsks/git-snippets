@@ -15,19 +15,26 @@ get_remote_branch () {
 	echo "${branch[0]}"
 }
 
+branch_exists() {
+	git rev-parse -q --verify "$1" > /dev/null
+}
+
 opt_discover=0
 opt_branch=0
 opt_update=0
-opt_keep=0
-while getopts dbuk ch; do
+opt_cleanup=0
+to_rev=HEAD
+while getopts dbukt: ch; do
 	case $ch in
+	(t)	to_rev=$OPTARG
+		;;
 	(d)	opt_discover=1
 		;;
 	(b)	opt_branch=1
 		;;
 	(u)	opt_update=1
 		;;
-	(k)	opt_keep=1
+	(k)	opt_cleanup=1
 		;;
 	esac
 done
@@ -42,12 +49,9 @@ base=$1
 remote=${2:-origin}
 target=$(git remote get-url $remote | awk -F/ '{printf "%s/%s", $(NF-1), $NF}')
 
-echo "base: $base"
-echo "target: $target"
-
 old_head=$(git rev-parse --abbrev-ref HEAD)
 
-revs=($(git log --reverse --grep '^x-branch:' --format=%H ${base}..HEAD))
+revs=($(git log --reverse --grep '^x-branch:' --format=%H ${base}..${to_rev}))
 branches=()
 for rev in "${revs[@]}"; do
 	remote_branch=$(get_remote_branch $rev) || exit 1
@@ -64,25 +68,33 @@ for (( i=0; i<${#revs[*]}; i++ )); do
 	rev=${revs[i]}
 	remote_branch=${branches[i]}
 
-	echo "BRANCH $remote_branch@${rev:0:7}"
-	git branch -q -D $remote_branch > /dev/null 2>&1 ||:
-	git checkout -q -b $remote_branch $rev
+	if branch_exists $remote_branch; then
+		echo "BRANCH $remote_branch@${rev:0:7} -- exists"
+		git checkout -q $remote_branch
+		git reset -q --hard $rev
+	else
+		echo "BRANCH $remote_branch@${rev:0:7} -- create"
+		git branch -q -D $remote_branch > /dev/null 2>&1 ||:
+		git checkout -q -b $remote_branch $rev
+	fi
 
 	(( $opt_branch == 1 )) && continue
 
 	echo "PUSH ${rev:0:7} -> $remote_branch"
 	git push -u -f origin $remote_branch
 
-	if (( $opt_update == 0 )); then
-		if ! gh pr view > /dev/null 2>&1; then
-			echo "PR $remote_branch@${rev:0:7}"
-			gh pr create \
-				-t "$(git show --quiet --format=%s)" \
-				-b "$(git show --quiet --format=%b | grep -v '^x-branch:')"
-		fi
+	(( $opt_update == 1 )) && continue
+
+	if gh pr view > /dev/null 2>&1; then
+		echo "PR $remote_branch@${rev:0:7} -- exists"
+	else
+		echo "PR $remote_branch@${rev:0:7} -- creating"
+		gh pr create \
+			-t "$(git show --quiet --format=%s)" \
+			-b "$(git show --quiet --format=%b | grep -v '^x-branch:')"
 	fi
 
-	if (( $opt_keep == 0 )); then
+	if (( $opt_cleanup == 1 )); then
 		echo "DELETE $remote_branch"
 		git checkout -q --detach
 		git branch -D $remote_branch > /dev/null 2>&1
