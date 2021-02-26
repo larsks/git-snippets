@@ -1,0 +1,92 @@
+#!/bin/bash
+
+get_remote_branch () {
+	local branch
+	branch=($(git show --quiet --format=%b $1 | awk '/^x-branch: / {print $2}'))
+
+	if (( "${#branch[*]}" == 0 )); then
+		echo "ERROR: no x-branch directive" >&2
+		return 1
+	elif (( "${#branch[*]}" > 1 )); then
+		echo "ERROR: multiple x-branch directives" >&2
+		return 1
+	fi
+
+	echo "${branch[0]}"
+}
+
+opt_discover=0
+opt_branch=0
+opt_update=0
+opt_keep=0
+while getopts dbuk ch; do
+	case $ch in
+	(d)	opt_discover=1
+		;;
+	(b)	opt_branch=1
+		;;
+	(u)	opt_update=1
+		;;
+	(k)	opt_keep=1
+		;;
+	esac
+done
+shift $(( OPTIND - 1 ))
+
+if (( $# < 1 )); then
+	echo "ERROR: $0: usage: $0 <base> [<remote>]" >&2
+	exit 2
+fi
+
+base=$1
+remote=${2:-origin}
+target=$(git remote get-url $remote | awk -F/ '{printf "%s/%s", $(NF-1), $NF}')
+
+echo "base: $base"
+echo "target: $target"
+
+old_head=$(git rev-parse --abbrev-ref HEAD)
+
+revs=($(git log --reverse --grep '^x-branch:' --format=%H ${base}..HEAD))
+branches=()
+for rev in "${revs[@]}"; do
+	remote_branch=$(get_remote_branch $rev) || exit 1
+	branches+=($remote_branch)
+	echo "FOUND ${rev:0:7} [$(git show --quiet --format=%s $rev)] -> $remote_branch"
+done
+
+(( opt_discover == 1 )) && exit
+
+trap "git checkout -q $old_head" EXIT
+set -e
+
+for (( i=0; i<${#revs[*]}; i++ )); do
+	rev=${revs[i]}
+	remote_branch=${branches[i]}
+
+	echo "BRANCH $remote_branch@${rev:0:7}"
+	git branch -q -D $remote_branch > /dev/null 2>&1 ||:
+	git checkout -q -b $remote_branch $rev
+
+	(( $opt_branch == 1 )) && continue
+
+	echo "PUSH ${rev:0:7} -> $remote_branch"
+	git push -u -f origin $remote_branch
+
+	if (( $opt_update == 0 )); then
+		if ! gh pr view > /dev/null 2>&1; then
+			echo "PR $remote_branch@${rev:0:7}"
+			gh pr create \
+				-t "$(git show --quiet --format=%s)" \
+				-b "$(git show --quiet --format=%b | grep -v '^x-branch:')"
+		fi
+	fi
+
+	if (( $opt_keep == 0 )); then
+		echo "DELETE $remote_branch"
+		git checkout -q --detach
+		git branch -D $remote_branch > /dev/null 2>&1
+	fi
+
+	prev_branch=$remote_branch
+done
