@@ -1,0 +1,52 @@
+#!/bin/bash
+# inspired by https://wchargin.github.io/posts/managing-dependent-pull-requests/
+
+push_args=()
+
+get_remote_name() {
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD)
+
+	git config --get ptt.$branch.remote ||
+		git config --get --default "origin" ptt.remote
+}
+
+get_remote_branch () {
+	local branch
+	branch=($(git show --quiet --format=%b | awk '/^x-branch: / {print $2}'))
+
+	if (( "${#branch[*]}" == 0 )); then
+		echo "ERROR: no x-branch directive" >&2
+		return 1
+	elif (( "${#branch[*]}" > 1 )); then
+		echo "ERROR: multiple x-branch directives" >&2
+		return 1
+	fi
+
+	echo "${branch[0]}"
+}
+
+ptt_push=1
+while getopts fFqr: ch; do
+	case $ch in
+		(r)	ptt_remote=$OPTARG
+			;;
+		(f)	push_args+=(--force-with-lease)
+			;;
+		(F)	push_args+=(-f)
+			;;
+		(q)	ptt_push=0
+			;;
+	esac
+done
+shift $(( OPTIND - 1 ))
+
+cid=$(git rev-parse --short HEAD)
+
+[[ "$ptt_remote" ]] || ptt_remote=$(get_remote_name)
+ptt_remote_branch=$(get_remote_branch) || exit 1
+ptt_remote_ref=$(git rev-parse -q --short $ptt_remote/$ptt_remote_branch || echo "none")
+
+printf "%s -> %s:%s [%s]\n" "$cid" "$ptt_remote" "$ptt_remote_branch" "$ptt_remote_ref"
+(( ptt_push == 1 )) &&
+	git push "${push_args[@]}" $ptt_remote HEAD:$ptt_remote_branch
