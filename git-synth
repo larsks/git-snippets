@@ -1,0 +1,116 @@
+#!/usr/bin/python
+
+import click
+import datetime
+import functools
+import os
+import subprocess
+import sys
+import yaml
+
+from pathlib import Path
+
+
+class Git:
+    def __init__(self, repo):
+        self.repo = Path(repo)
+
+    def __call__(self, *args):
+        return self._run_git('-C', self.repo, *args)
+
+    def init(self):
+        return self._run_git('init', self.repo)
+
+    def _run_git(self, *args):
+        out = subprocess.check_output(('git',) + args)
+        return out
+
+
+def Date(val):
+    if val in ['today', 'now']:
+        date = datetime.datetime.now()
+    else:
+        date = datetime.datetime.fromisoformat(val)
+
+    return date
+
+
+@click.command()
+@click.option('-r', '--repo-path', default='testrepo', type=Path)
+@click.option('-n', '--name', default='demo')
+@click.option('-e', '--email', default='demo@example.com')
+@click.option('-d', '--date', type=Date)
+@click.argument('spec', type=click.File(mode='r'), default=sys.stdin)
+def main(repo_path, name, date, email, spec):
+    if repo_path.is_dir():
+        raise click.ClickException(f'directory {repo_path} already exists')
+
+    git = Git(repo_path)
+
+    os.environ.update({
+        'GIT_AUTHOR_NAME': name,
+        'GIT_COMMITTER_NAME': name,
+        'GIT_AUTHOR_EMAIL': email,
+        'GIT_COMMITTER_EMAIL': email,
+    })
+
+    if date is not None:
+        os.environ['GIT_AUTHOR_DATE'] = date.isoformat()
+        os.environ['GIT_COMMITTER_DATE'] = date.isoformat()
+
+    with spec:
+        hist = yaml.safe_load(spec)
+
+    stack = [iter(hist)]
+    branches = []
+    current_branch = None
+
+    git.init()
+
+    while stack:
+        actlist = stack.pop()
+        try:
+            action = next(actlist)
+            stack.append(actlist)
+        except StopIteration:
+            if branches:
+                current_branch = branches.pop()
+                git('switch', current_branch)
+            continue
+
+        if 'branch' in action:
+            if current_branch is not None:
+                branches.append(current_branch)
+
+            branch = action['branch']
+            git('switch', '-c', branch['name'])
+            current_branch = branch['name']
+            stack.append(iter(branch['actions']))
+            continue
+        elif 'commit' in action:
+            commit = action['commit']
+            print('commit', commit['message'])
+            git('commit', '-m', commit['message'],
+                '--allow-empty')
+        elif 'file' in action:
+            path = repo_path / action['file']['name']
+            with path.open('w') as fd:
+                fd.write(action['file']['content'])
+            git('add', action['file']['name'])
+        elif 'set' in action:
+            if 'date' in action['set']:
+                os.environ['GIT_AUTHOR_DATE'] = Date(action['set']['date']).isoformat()
+                os.environ['GIT_COMMITTER_DATE'] = Date(action['set']['date']).isoformat()
+            if 'name' in action['set']:
+                os.environ['GIT_AUTHOR_NAME'] = action['set']['name']
+                os.environ['GIT_COMMITTER_NAME'] = action['set']['name']
+            if 'email' in action['set']:
+                os.environ['GIT_AUTHOR_EMAIL'] = action['set']['email']
+                os.environ['GIT_COMMITTER_EMAIL'] = action['set']['email']
+        elif 'setenv' in action:
+            for k, v in action['setenv'].items():
+                os.environ[k] = v
+
+
+if __name__ == '__main__':
+    main()
