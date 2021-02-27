@@ -33,9 +33,10 @@ def main(output, render, view, format, flag_remote, flag_tags,
     repo = git.Repo()
     seen = set()
 
-    graph = Digraph(name='git', format='svg', graph_attr=dict(
-        rankdir=rankdir
-    ))
+    graph = Digraph(name='git', format='svg',
+                    graph_attr=dict(rankdir=rankdir),
+                    node_attr=dict(shape='circle'),
+                    )
 
     # subgraph for local branch heads
     heads = Digraph(node_attr=dict(
