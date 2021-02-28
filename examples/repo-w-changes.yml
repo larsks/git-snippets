@@ -1,0 +1,44 @@
+# This is exampe input for the git-synth command. After installing
+# git-synth somewhere in your $PATH, you can run:
+#
+#   git synth -r testrepo repo-w-changes.yml
+#
+# This will create a 'testrepo' directory containing a
+# git history described by this YAML file.
+- set:
+    date: "2021-01-01"
+    name: Fake Person
+    email: fake@example.com
+- branch:
+    name: master
+    actions:
+      - file:
+          name: file1.txt
+          content: |
+            This is a test.
+      - commit:
+          message: A
+      - file:
+          name: file1.txt
+          content: |
+            This is a test.
+            This is only a test.
+      - commit:
+          message: B
+      - branch:
+          name: topic1
+          actions:
+            - file:
+                name: file1.txt
+                content: |
+                  This is a test.
+                  This was only a test.
+            - commit:
+                message: X
+      - file:
+          name: file1.txt
+          content: |
+            This was a test.
+            This was only a test.
+      - commit:
+          message: C
