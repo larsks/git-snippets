@@ -2,13 +2,15 @@
 
 import click
 import datetime
-import functools
+import logging
 import os
 import subprocess
 import sys
 import yaml
 
 from pathlib import Path
+
+LOG = logging.getLogger('git-synth')
 
 
 class Git:
@@ -22,8 +24,8 @@ class Git:
         return self._run_git('init', self.repo)
 
     def _run_git(self, *args):
-        out = subprocess.check_output(('git',) + args)
-        return out
+        LOG.debug('running with with %s', ' '.join(str(arg) for arg in args))
+        return subprocess.check_output(('git',) + args)
 
 
 def Date(val):
@@ -36,12 +38,19 @@ def Date(val):
 
 
 @click.command()
-@click.option('-r', '--repo-path', default='testrepo', type=Path)
+@click.option('-r', '--repo-path', type=Path, required=True)
 @click.option('-n', '--name', default='demo')
 @click.option('-e', '--email', default='demo@example.com')
 @click.option('-d', '--date', type=Date)
+@click.option('-v', '--verbose', count=True)
 @click.argument('spec', type=click.File(mode='r'), default=sys.stdin)
-def main(repo_path, name, date, email, spec):
+def main(repo_path, name, date, email, verbose, spec):
+    try:
+        loglevel = ['WARNING', 'INFO', 'DEBUG'][verbose]
+    except IndexError:
+        loglevel = 'DEBUG'
+    logging.basicConfig(level=loglevel)
+
     if repo_path.is_dir():
         raise click.ClickException(f'directory {repo_path} already exists')
 
@@ -75,40 +84,49 @@ def main(repo_path, name, date, email, spec):
         except StopIteration:
             if branches:
                 current_branch = branches.pop()
-                git('switch', current_branch)
+                git('switch', '-q', current_branch)
             continue
 
         if 'branch' in action:
+            spec = action['branch']
+
             if current_branch is not None:
                 branches.append(current_branch)
 
-            branch = action['branch']
-            git('switch', '-c', branch['name'])
-            current_branch = branch['name']
-            stack.append(iter(branch['actions']))
+            LOG.info('creating branch %s', spec['name'])
+            git('switch', '-qc', spec['name'])
+            current_branch = spec['name']
+            stack.append(iter(spec['actions']))
             continue
         elif 'commit' in action:
-            commit = action['commit']
-            print('commit', commit['message'])
-            git('commit', '-m', commit['message'],
+            spec = action['commit']
+            LOG.info('commit with message "%s"', spec['message'])
+            git('commit', '-m', spec['message'],
                 '--allow-empty')
         elif 'file' in action:
-            path = repo_path / action['file']['name']
+            spec = action['file']
+            path = repo_path / spec['name']
+            LOG.info('creating file "%s"', spec['name'])
             with path.open('w') as fd:
-                fd.write(action['file']['content'])
-            git('add', action['file']['name'])
+                fd.write(spec['content'])
+            git('add', spec['name'])
         elif 'set' in action:
-            if 'date' in action['set']:
-                os.environ['GIT_AUTHOR_DATE'] = Date(action['set']['date']).isoformat()
-                os.environ['GIT_COMMITTER_DATE'] = Date(action['set']['date']).isoformat()
-            if 'name' in action['set']:
-                os.environ['GIT_AUTHOR_NAME'] = action['set']['name']
-                os.environ['GIT_COMMITTER_NAME'] = action['set']['name']
-            if 'email' in action['set']:
-                os.environ['GIT_AUTHOR_EMAIL'] = action['set']['email']
-                os.environ['GIT_COMMITTER_EMAIL'] = action['set']['email']
+            spec = action['set']
+            if 'date' in spec:
+                LOG.info('setting date to "%s"', spec['date'])
+                os.environ['GIT_AUTHOR_DATE'] = Date(spec['date']).isoformat()
+                os.environ['GIT_COMMITTER_DATE'] = Date(spec['date']).isoformat()
+            if 'name' in spec:
+                LOG.info('setting name to "%s"', spec['name'])
+                os.environ['GIT_AUTHOR_NAME'] = spec['name']
+                os.environ['GIT_COMMITTER_NAME'] = spec['name']
+            if 'email' in spec:
+                LOG.info('setting email to "%s"', spec['email'])
+                os.environ['GIT_AUTHOR_EMAIL'] = spec['email']
+                os.environ['GIT_COMMITTER_EMAIL'] = spec['email']
         elif 'setenv' in action:
             for k, v in action['setenv'].items():
+                LOG.info('setting env var %s to "%s"', k, v)
                 os.environ[k] = v
 
 
