@@ -77,11 +77,11 @@ def main(output, render, view, format, flag_remote, flag_tags,
                 continue
             seen.add(commit)
 
-            args = dict(tooltip=commit.message.splitlines()[0])
-
             if use_message:
-                msg = commit.message.splitlines()[0]
-                args['label'] = msg
+                args = dict(tooltip=commit.hexsha, label=commit.summary)
+            else:
+                args = dict(tooltip=commit.summary)
+
             sub.node(_shortref(commit), **args)
 
             for parent in commit.parents:
