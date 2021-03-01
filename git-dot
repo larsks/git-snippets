@@ -27,9 +27,11 @@ def git(*args):
 @click.option('--remote/--no-remote', '-R', 'flag_remote')
 @click.option('--tags/--no-tags', '-t', 'flag_tags')
 @click.option('--rankdir', default='TB')
+@click.option('--shape')
 def main(output, render, view, format, flag_remote, flag_tags,
          rankdir, use_message, gather, shortref_len,
-         exclude_remote, exclude_tag, exclude_branch):
+         exclude_remote, exclude_tag, exclude_branch,
+         shape):
 
     def _shortref(ref):
         return ref[:shortref_len]
@@ -39,9 +41,12 @@ def main(output, render, view, format, flag_remote, flag_tags,
 
     seen = set()
 
+    if shape is None:
+        shape = 'box' if use_message else 'circle'
+
     graph = Digraph(name='git', format='svg',
                     graph_attr=dict(rankdir=rankdir),
-                    node_attr=dict(shape='circle'),
+                    node_attr=dict(shape=shape),
                     )
 
     # subgraph for local branch heads
