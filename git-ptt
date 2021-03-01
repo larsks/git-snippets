@@ -26,20 +26,42 @@ get_remote_branch () {
 	echo "${branch[0]}"
 }
 
+OPTSPEC="\
+git ptt [-r|--remote <remote> [-f|--force-with-lease] [-F|--force] [-q|--query]
+--
+h,help			show help
+
+r,remote=<REMOTE>	specify name of remote
+f,force-with-lease	see git-push(1)
+F,force			really force
+q,query			query only (don't push)
+"
+
+eval "$(git rev-parse --parseopt -- "$@" <<<$OPTSPEC || echo exit $?)"
+
 ptt_push=1
-while getopts fFqr: ch; do
-	case $ch in
-		(r)	ptt_remote=$OPTARG
+while (( $# )); do
+	case $1 in
+		(-r|--remote)
+			shift
+			ptt_remote=$1
 			;;
-		(f)	push_args+=(--force-with-lease)
+		(-f|--force-with-lease)
+			push_args+=(--force-with-lease)
 			;;
-		(F)	push_args+=(-f)
+		(-F|--force)
+			push_args+=(-f)
 			;;
-		(q)	ptt_push=0
+		(-q|--query)
+			ptt_push=0
+			;;
+		(--)	shift
+			break
 			;;
 	esac
+
+	shift
 done
-shift $(( OPTIND - 1 ))
 
 cid=$(git rev-parse --short HEAD)
 
