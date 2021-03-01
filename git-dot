@@ -1,10 +1,15 @@
 #!/usr/bin/python
 
 import click
-import git
+import subprocess
 
 from graphviz import Digraph
-from itertools import chain
+
+
+def git(*args):
+    return subprocess.check_output(
+        ('git',) + args
+    ).decode()
 
 
 @click.command()
@@ -27,12 +32,11 @@ def main(output, render, view, format, flag_remote, flag_tags,
          exclude_remote, exclude_tag, exclude_branch):
 
     def _shortref(ref):
-        return ref.hexsha[:shortref_len]
+        return ref[:shortref_len]
 
     if (render or view) and not output:
         raise click.ClickException('--render and --view require --output')
 
-    repo = git.Repo()
     seen = set()
 
     graph = Digraph(name='git', format='svg',
@@ -53,15 +57,18 @@ def main(output, render, view, format, flag_remote, flag_tags,
     commit_links = set()
     tag_links = set()
 
-    for head in repo.heads:
-        if head.name in exclude_branch:
+    for info in git('for-each-ref',
+                    '--format=%(objectname) %(refname:short)',
+                    'refs/heads/').splitlines():
+        headid, head = info.split()
+        if head in exclude_branch:
             continue
 
-        heads.node(head.name)
-        branch_links.add((head.name, _shortref(head.commit)))
+        heads.node(head)
+        branch_links.add((head, _shortref(headid)))
 
         if gather == 'branch':
-            sub = Digraph(node_attr=dict(group=f'{head.name}_commits'))
+            sub = Digraph(node_attr=dict(group=f'{head}_commits'))
             commits.append(sub)
         elif not commits and gather == 'commit':
             sub = Digraph(node_attr=dict(group='commits'))
@@ -72,19 +79,22 @@ def main(output, render, view, format, flag_remote, flag_tags,
         else:
             sub = commits[0]
 
-        for commit in chain([head.commit], head.commit.traverse()):
+        for commit in git('rev-list', head).splitlines():
             if commit in seen:
                 continue
             seen.add(commit)
 
+            commit_summary = git('show', '--quiet', '--format=%s', commit).splitlines()[0]
+
             if use_message:
-                args = dict(tooltip=commit.hexsha, label=commit.summary)
+                args = dict(tooltip=commit, label=commit_summary)
             else:
-                args = dict(tooltip=commit.summary)
+                args = dict(tooltip=commit_summary)
 
             sub.node(_shortref(commit), **args)
 
-            for parent in commit.parents:
+            commit_parents = git('rev-list', '--parents', '-n1', commit).split()[1:]
+            for parent in commit_parents:
                 commit_links.add((_shortref(commit), _shortref(parent)))
 
     if gather != 'free':
@@ -100,13 +110,16 @@ def main(output, render, view, format, flag_remote, flag_tags,
             fontcolor='white',
         ))
 
-        for remote in repo.remotes:
-            if remote.name in exclude_remote:
+        for remote in git('remote').splitlines():
+            if remote in exclude_remote:
                 continue
 
-            for ref in remote.refs:
-                remote_heads.node(ref.name)
-                branch_links.add((ref.name, _shortref(ref.commit)))
+            for info in git('for-each-ref',
+                            '--format=%(objectname) %(refname:short)',
+                            f'refs/remotes/{remote}/').splitlines():
+                refid, ref = info.split()
+                remote_heads.node(ref)
+                branch_links.add((ref, _shortref(refid)))
         graph.subgraph(remote_heads)
 
     if flag_tags:
@@ -116,12 +129,15 @@ def main(output, render, view, format, flag_remote, flag_tags,
             fontcolor='black',
         ))
 
-        for tag in repo.tags:
-            if tag.name in exclude_tag:
+        for info in git('for-each-ref',
+                        '--format=%(objectname) %(refname:short)',
+                        'refs/tags/').splitlines():
+            tagid, tag = info.split()
+            if tag in exclude_tag:
                 continue
 
-            tags.node(tag.name)
-            tag_links.add((tag.name, _shortref(tag.commit)))
+            tags.node(tag)
+            tag_links.add((tag, _shortref(tagid)))
         graph.subgraph(tags)
 
     if branch_links:
