@@ -103,6 +103,12 @@ def main(repo_path, name, date, email, verbose, spec):
             LOG.info('commit with message "%s"', spec['message'])
             git('commit', '-m', spec['message'],
                 '--allow-empty')
+        elif 'merge' in action:
+            spec = action['merge']
+            LOG.info('merge branch %s', spec['branch'])
+            git('merge',
+                '--ff' if spec.get('ff') else '--no-ff',
+                spec['branch'])
         elif 'file' in action:
             spec = action['file']
             path = repo_path / spec['name']
