@@ -36,21 +36,31 @@ def make_message_from(*commits):
 
 @click.command()
 @click.option('-o', '--output')
-@click.option('-r', '--render', is_flag=True)
-@click.option('-v', '--view', is_flag=True)
-@click.option('-f', '--format', default='svg')
-@click.option('-m', '--use-message', is_flag=True)
-@click.option('-M', '--fake-merge-message', is_flag=True)
+@click.option('-r', '--render', is_flag=True,
+              help='generate image')
+@click.option('-v', '--view', is_flag=True,
+              help='generate and view image')
+@click.option('-f', '--format', default='svg',
+              help='format of rendered output')
+@click.option('-m', '--use-message', is_flag=True,
+              help='use commit message for node label')
+@click.option('-M', '--fake-merge-message', is_flag=True,
+              help='synthesize a label for merge commits from parent names')
 @click.option('-g', '--gather', type=click.Choice(['free', 'commit', 'branch']),
-              default='free')
-@click.option('--shortref-len', default=10)
+              default='free',
+              help='attempt to group commits by given criteria')
+@click.option('--shortref-len', default=10,
+              help='length of displayed commit ids')
 @click.option('--exclude-remote', '--xr', multiple=True, default=[])
 @click.option('--exclude-tag', '--xt', multiple=True, default=[])
 @click.option('--exclude-branch', '--xb', multiple=True, default=[])
-@click.option('--remote/--no-remote', '-R', 'flag_remote')
-@click.option('--tags/--no-tags', '-t', 'flag_tags')
+@click.option('--remote/--no-remote', '-R', 'flag_remote',
+              help='include remote heads in graph')
+@click.option('--tags/--no-tags', '-t', 'flag_tags',
+              help='include tags in graph')
 @click.option('--rankdir', default='TB')
-@click.option('--shape', default='circle')
+@click.option('--shape', default='circle',
+              help='set node shape')
 def main(output, render, view, format, flag_remote, flag_tags,
          rankdir, use_message, gather, shortref_len,
          exclude_remote, exclude_tag, exclude_branch,
