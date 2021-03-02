@@ -154,6 +154,8 @@ def main(output, render, view, format, flag_remote, flag_tags,
                             '--format=%(objectname) %(refname:short)',
                             f'refs/remotes/{remote}/').splitlines():
                 refid, ref = info.split()
+                if refid not in seen:
+                    continue
                 remote_heads.node(ref)
                 branch_links.add((ref, _shortref(refid)))
         graph.subgraph(remote_heads)
