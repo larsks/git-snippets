@@ -12,12 +12,35 @@ def git(*args):
     ).decode()
 
 
+def parents_of(commit):
+    return git('rev-list', '--parents', '-n1', commit).split()[1:]
+
+
+def subject_of(commit):
+    return git('show', '--quiet', '--format=%s', commit).splitlines()[0]
+
+
+def make_message_from(*commits):
+    messages = []
+    for commit in commits:
+        parents = parents_of(commit)
+        if len(parents) > 1:
+            message = make_message_from(*parents)
+        else:
+            message = subject_of(commit)
+
+        messages.append(message)
+
+    return '+'.join(messages)
+
+
 @click.command()
 @click.option('-o', '--output')
 @click.option('-r', '--render', is_flag=True)
 @click.option('-v', '--view', is_flag=True)
 @click.option('-f', '--format', default='svg')
 @click.option('-m', '--use-message', is_flag=True)
+@click.option('-M', '--fake-merge-message', is_flag=True)
 @click.option('-g', '--gather', type=click.Choice(['free', 'commit', 'branch']),
               default='free')
 @click.option('--shortref-len', default=10)
@@ -27,11 +50,11 @@ def git(*args):
 @click.option('--remote/--no-remote', '-R', 'flag_remote')
 @click.option('--tags/--no-tags', '-t', 'flag_tags')
 @click.option('--rankdir', default='TB')
-@click.option('--shape')
+@click.option('--shape', default='circle')
 def main(output, render, view, format, flag_remote, flag_tags,
          rankdir, use_message, gather, shortref_len,
          exclude_remote, exclude_tag, exclude_branch,
-         shape):
+         shape, fake_merge_message):
 
     def _shortref(ref):
         return ref[:shortref_len]
@@ -40,9 +63,6 @@ def main(output, render, view, format, flag_remote, flag_tags,
         raise click.ClickException('--render and --view require --output')
 
     seen = set()
-
-    if shape is None:
-        shape = 'box' if use_message else 'circle'
 
     graph = Digraph(name='git', format='svg',
                     graph_attr=dict(rankdir=rankdir),
@@ -89,18 +109,19 @@ def main(output, render, view, format, flag_remote, flag_tags,
                 continue
             seen.add(commit)
 
-            commit_summary = git('show', '--quiet', '--format=%s', commit).splitlines()[0]
-
-            if use_message:
-                args = dict(tooltip=commit, label=commit_summary)
-            else:
-                args = dict(tooltip=commit_summary)
-
-            sub.node(_shortref(commit), **args)
-
-            commit_parents = git('rev-list', '--parents', '-n1', commit).split()[1:]
+            message = subject_of(commit)
+            commit_parents = parents_of(commit)
             for parent in commit_parents:
                 commit_links.add((_shortref(commit), _shortref(parent)))
+
+            if use_message:
+                if fake_merge_message and len(commit_parents) > 1:
+                    message = make_message_from(*commit_parents)
+                args = dict(tooltip=commit, label=message)
+            else:
+                args = dict(tooltip=message)
+
+            sub.node(_shortref(commit), **args)
 
     if gather != 'free':
         for sub in commits:
