@@ -9,6 +9,7 @@ EOF
 force=
 remote=$(git config --get --default origin ptt.remote)
 query_only=0
+shortlen=10
 
 while getopts qfr: ch; do
 	case $ch in
@@ -43,7 +44,16 @@ for rev in $(git rev-list "$@" | tac ); do
 		continue
 	fi
 
-	git show -q --format="%h %s -> %Cred${remote}/${target}%Creset" $rev
+	target_rev=$(git rev-parse -q ${remote}/${target} || echo none)
+	if [[ $target_rev == $rev ]]; then
+		target_rev_color=green
+	else
+		target_rev_color=red
+	fi
+	target_rev_fmt="%C${target_rev_color}${target_rev:0:$shortlen}%Creset"
+	rev_fmt="${rev:0:$shortlen}"
+
+	git show -q --format="* %s%n  ${rev_fmt} -> ${target_rev_fmt} %Cblue${remote}/${target}%Creset" $rev
 	(( $query_only )) && continue
 	git push ${force} ${remote} ${rev}:refs/heads/${target}
 done
