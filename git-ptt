@@ -2,7 +2,14 @@
 
 usage() {
 cat <<EOF
-$0: usage: $0 [-f] [-F] [-r <remote>] <rev>
+${0##*/}: usage: ${0##*/} [-fhF] [-r <remote>] <rev>
+
+Options:
+
+  -f            Push using --force-with-lease
+  -F            Push using --force
+  -r <remote>   Push to remote <remote>
+  -h            Show this help message
 EOF
 }
 
@@ -12,7 +19,7 @@ query_only=0
 shortlen=10
 marker=x-branch
 
-while getopts qfr: ch; do
+while getopts fhr:q ch; do
 	case $ch in
 	(f)	force="--force-with-lease"
 		;;
@@ -22,6 +29,10 @@ while getopts qfr: ch; do
 		;;
 
 	(q)	query_only=1
+		;;
+
+	(h)	usage
+		exit 0
 		;;
 
 	(\?)	usage >&2
