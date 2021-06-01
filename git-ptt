@@ -10,6 +10,7 @@ force=
 remote=$(git config --get --default origin ptt.remote)
 query_only=0
 shortlen=10
+marker=x-branch
 
 while getopts qfr: ch; do
 	case $ch in
@@ -35,10 +36,10 @@ shift $(( OPTIND - 1 ))
 set -eu
 
 for rev in $(git rev-list "$@" | tac ); do
-	target=($(git show $rev -q --format="%(trailers:key=x-branch,valueonly=true)"))
+	target=($(git show $rev -q --format="%(trailers:key=${marker},valueonly=true)"))
 
 	if (( ${#target[*]} > 1 )); then
-		echo "ERROR: multiple x-branch directives in $rev." >&2
+		echo "ERROR: multiple ${marker} directives in $rev." >&2
 		exit 1
 	elif (( ${#target[*]} == 0 )); then
 		continue
