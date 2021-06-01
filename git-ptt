@@ -71,4 +71,4 @@ ptt_remote_ref=$(git rev-parse -q --short $ptt_remote/$ptt_remote_branch || echo
 
 printf "%s -> %s:%s [%s]\n" "$cid" "$ptt_remote" "$ptt_remote_branch" "$ptt_remote_ref"
 (( ptt_push == 1 )) &&
-	git push "${push_args[@]}" $ptt_remote HEAD:$ptt_remote_branch
+	git push "${push_args[@]}" $ptt_remote HEAD:refs/heads/$ptt_remote_branch
