@@ -45,7 +45,8 @@ for rev in $(git rev-list "$@" | tac ); do
 		continue
 	fi
 
-	target_rev=$(git rev-parse -q ${remote}/${target} || echo none)
+	target_rev=$(git rev-parse --verify -q ${remote}/${target} || echo none)
+
 	if [[ $target_rev == $rev ]]; then
 		target_rev_color=green
 	else
