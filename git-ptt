@@ -31,6 +31,8 @@ shift $(( OPTIND - 1 ))
 
 (( $# == 1 )) || { usage >&2; exit 2; }
 
+set -eu
+
 for rev in $(git rev-list "$@" | tac ); do
 	target=($(git show $rev -q --format=%b | awk '/^x-branch:/ {print $2}'))
 
