@@ -1,74 +1,47 @@
 #!/bin/bash
-# inspired by https://wchargin.github.io/posts/managing-dependent-pull-requests/
 
-push_args=()
-
-get_remote_name() {
-	local branch
-	branch=$(git rev-parse --abbrev-ref HEAD)
-
-	git config --get ptt.$branch.remote ||
-		git config --get --default "origin" ptt.remote
+usage() {
+cat <<EOF
+$0: usage: $0 [-f] [-F] [-r <remote>] <rev>
+EOF
 }
 
-get_remote_branch () {
-	local branch
-	branch=($(git show --quiet --format=%b | awk '/^x-branch: / {print $2}'))
+force=
+remote=$(git config --get --default origin ptt.remote)
+query_only=0
 
-	if (( "${#branch[*]}" == 0 )); then
-		echo "ERROR: no x-branch directive" >&2
-		return 1
-	elif (( "${#branch[*]}" > 1 )); then
-		echo "ERROR: multiple x-branch directives" >&2
-		return 1
+while getopts qfr: ch; do
+	case $ch in
+	(f)	force="--force-with-lease"
+		;;
+	(F)	force="--force"
+		;;
+	(r)	remote="$OPTARG"
+		;;
+
+	(q)	query_only=1
+		;;
+
+	(\?)	usage >&2
+		exit 2
+		;;
+	esac
+done
+shift $(( OPTIND - 1 ))
+
+(( $# == 1 )) || { usage >&2; exit 2; }
+
+git rev-list "$@" | tac | while read rev; do
+	target=($(git show $rev -q --format=%b | awk '/^x-branch:/ {print $2}'))
+
+	if (( ${#target[*]} > 1 )); then
+		echo "ERROR: multiple x-branch directives in $rev." >&2
+		exit 1
+	elif (( ${#target[*]} == 0 )); then
+		continue
 	fi
 
-	echo "${branch[0]}"
-}
-
-OPTSPEC="\
-git ptt [-r|--remote <remote> [-f|--force-with-lease] [-F|--force] [-q|--query]
---
-h,help			show help
-
-r,remote=<REMOTE>	specify name of remote
-f,force-with-lease	see git-push(1)
-F,force			really force
-q,query			query only (don't push)
-"
-
-eval "$(git rev-parse --parseopt -- "$@" <<<$OPTSPEC || echo exit $?)"
-
-ptt_push=1
-while (( $# )); do
-	case $1 in
-		(-r|--remote)
-			shift
-			ptt_remote=$1
-			;;
-		(-f|--force-with-lease)
-			push_args+=(--force-with-lease)
-			;;
-		(-F|--force)
-			push_args+=(-f)
-			;;
-		(-q|--query)
-			ptt_push=0
-			;;
-		(--)	shift
-			break
-			;;
-	esac
-
-	shift
+	git show -q --format="%h %s -> %Cred${remote}/${target}%Creset" $rev
+	(( $query_only )) && continue
+	git push ${force} ${remote} ${rev}:refs/heads/${target}
 done
-
-cid=$(git rev-parse --short HEAD)
-
-[[ "$ptt_remote" ]] || ptt_remote=$(get_remote_name)
-ptt_remote_branch=$(get_remote_branch) || exit 1
-ptt_remote_ref=$(git rev-parse -q --short $ptt_remote/$ptt_remote_branch || echo "none")
-
-printf "%s -> %s:%s [%s]\n" "$cid" "$ptt_remote" "$ptt_remote_branch" "$ptt_remote_ref"
-(( ptt_push == 1 )) &&
-	git push "${push_args[@]}" $ptt_remote HEAD:refs/heads/$ptt_remote_branch
