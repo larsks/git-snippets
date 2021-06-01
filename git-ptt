@@ -34,7 +34,7 @@ shift $(( OPTIND - 1 ))
 set -eu
 
 for rev in $(git rev-list "$@" | tac ); do
-	target=($(git show $rev -q --format=%b | awk '/^x-branch:/ {print $2}'))
+	target=($(git show $rev -q --format="%(trailers:key=x-branch,valueonly=true)"))
 
 	if (( ${#target[*]} > 1 )); then
 		echo "ERROR: multiple x-branch directives in $rev." >&2
