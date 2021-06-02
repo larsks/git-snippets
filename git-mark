@@ -71,8 +71,8 @@ for refspec in "${@:-HEAD}"; do
 
 	if ! diff $tmpdir/orig $tmpdir/modified > /dev/null; then
 		echo "modifying commit $refspec (${rev:0:10})"
-		git revise -F $tmpdir/modified $rev > $tmpdir/out 2> $tmpdir/err ||
+		git set-message -F $tmpdir/modified $rev > $tmpdir/out 2> $tmpdir/err ||
 			die "failed to modify mark: $(cat $tmpdir/err)"
-		git show -q $(head -1 $tmpdir/out | cut -f1 -d' ')
+		git show -q $(cat $tmpdir/out)
 	fi
 done
