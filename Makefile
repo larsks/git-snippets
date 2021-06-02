@@ -6,10 +6,15 @@ LN = ln
 
 BINS = \
        git-dot \
-       git-synth \
+	   git-mark \
        git-ptt \
 	   git-set-message \
-	   git-mark
+       git-synth
+
+GENERATED = \
+			git-mark \
+			git-ptt \
+			git-set-message
 
 all: $(BINS)
 
@@ -32,3 +37,6 @@ install: all
 	$(INSTALL) -m 755 git-set-message $(bindir)/
 	$(INSTALL) -m 755 git-mark $(bindir)/
 	$(LN) -sf git-mark $(bindir)/unmark
+
+clean:
+	rm -f $(GENERATED)
