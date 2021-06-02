@@ -8,11 +8,11 @@ h,help    Show the help
 
 a,all           Update all branches from which the commit is reachable
 v,verbose       Increase logging verbosity
-F,message-file= get message from file instead of stdin
+F,message-file= Get commit message from file
+s,stdin         Get commit message from stdin
 "
 
 all_branches=0
-message_file=
 
 eval "$(git rev-parse --parseopt -- "$@" <<<$OPTS_SPEC || echo exit $?)"
 
@@ -28,6 +28,10 @@ while (( $# > 0 )); do
 
     (-F)    message_file=$2
             shift 2
+            ;;
+
+    (-s)    message_file=
+            shift
             ;;
 
     (--)    shift
@@ -68,6 +72,12 @@ for branch in "${branch_list[@]}"; do
   git log --format='%p' $oldref..$branch | awk 'NF>1 {exit 1}' ||
     DIE "history contains one or more merge commits"
 done
+
+if [[ -z ${message_file+UNSET} ]]; then
+    message_file="$(git rev-parse --git-dir)/COMMIT_EDITMSG"
+    git cat-file -p $oldref | sed '1,/^$/d' > $message_file
+    ${VISUAL:-${EDITOR:-vi}} $message_file || DIE "failed to edit message"
+fi
 
 # generate a replacement commit object, reading the new commit message
 # from stdin.
