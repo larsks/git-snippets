@@ -1,19 +1,3 @@
-#!/bin/bash
-
-all_branches=0
-
-DIE() {
-  echo "ERROR: $*" >&2
-  exit 1
-}
-
-LOG() {
-  local level=$1
-  shift
-
-  (( verbose >= level )) && echo "${0##*/}: $*" >&2
-}
-
 OPTS_SPEC="\
 ${0##*/} [<options>] <ref>
 
@@ -27,26 +11,31 @@ v,verbose       Increase logging verbosity
 F,message-file= get message from file instead of stdin
 "
 
+all_branches=0
+
 eval "$(git rev-parse --parseopt -- "$@" <<<$OPTS_SPEC || echo exit $?)"
 
 while (( $# > 0 )); do
-  case $1 in
-    (-a)  all_branches=1
-          shift
-          ;;
+    case $1 in
+    (-a)    all_branches=1
+            shift
+            ;;
 
-    (-v)  let verbose++
-          shift
-          ;;
+    (-v)    let verbose+=1
+            shift
+            ;;
 
-    (-F)  message_file=$2
-          shift 2
-          ;;
+    (-F)    message_file=$2
+            shift 2
+            ;;
 
-    (--)  shift
-          break
-          ;;
-  esac
+    (--)    shift
+            break
+            ;;
+
+    (-*)    DIE "unknown option: $1"
+            ;;
+    esac
 done
 
 (( $# == 1 )) || DIE "missing refspec"

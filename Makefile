@@ -7,9 +7,23 @@ LN = ln
 BINS = \
        git-dot \
        git-synth \
-       git-ptt
+       git-ptt \
+	   git-set-message \
+	   git-mark
 
 all: $(BINS)
+
+git-mark: common.sh git-mark.in.sh
+	cat $^ > $@
+	chmod 755 $@
+
+git-ptt: common.sh git-ptt.in.sh
+	cat $^ > $@
+	chmod 755 $@
+
+git-set-message: common.sh git-set-message.in.sh
+	cat $^ > $@
+	chmod 755 $@
 
 install: all
 	$(INSTALL) -m 755 git-dot $(bindir)/
