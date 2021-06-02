@@ -12,6 +12,7 @@ F,message-file= get message from file instead of stdin
 "
 
 all_branches=0
+message_file=
 
 eval "$(git rev-parse --parseopt -- "$@" <<<$OPTS_SPEC || echo exit $?)"
 
