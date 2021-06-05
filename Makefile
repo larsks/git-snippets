@@ -6,17 +6,23 @@ LN = ln
 
 BINS = \
        git-dot \
-	   git-mark \
+       git-mark \
        git-ptt \
-	   git-set-message \
-       git-synth
+       git-set-message \
+       git-synth \
+       git-pick
 
 GENERATED = \
 			git-mark \
 			git-ptt \
-			git-set-message
+			git-set-message \
+			git-pick
 
 all: $(BINS)
+
+git-pick: common.sh git-pick.in.sh
+	cat $^ > $@
+	chmod 755 $@
 
 git-mark: common.sh git-mark.in.sh
 	cat $^ > $@
@@ -31,11 +37,7 @@ git-set-message: common.sh git-set-message.in.sh
 	chmod 755 $@
 
 install: all
-	$(INSTALL) -m 755 git-dot $(bindir)/
-	$(INSTALL) -m 755 git-synth $(bindir)/
-	$(INSTALL) -m 755 git-ptt $(bindir)/
-	$(INSTALL) -m 755 git-set-message $(bindir)/
-	$(INSTALL) -m 755 git-mark $(bindir)/
+	$(INSTALL) -m 755 $(BINS) $(bindir)/
 	$(LN) -sf git-mark $(bindir)/unmark
 
 clean:
