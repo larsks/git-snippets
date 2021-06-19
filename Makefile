@@ -37,8 +37,9 @@ git-set-message: common.sh git-set-message.in.sh
 	chmod 755 $@
 
 install: all
-	$(INSTALL) -m 755 $(BINS) $(bindir)/
-	$(LN) -sf git-mark $(bindir)/unmark
+	$(INSTALL) -d -m 755 $(DESTDIR)$(bindir)
+	$(INSTALL) -m 755 $(BINS) $(DESTDIR)$(bindir)/
+	$(LN) -sf git-mark $(DESTDIR)$(bindir)/unmark
 
 clean:
 	rm -f $(GENERATED)
