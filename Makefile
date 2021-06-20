@@ -10,7 +10,8 @@ BINS = \
        git-ptt \
        git-set-message \
        git-synth \
-       git-pick
+       git-pick \
+       git-resume
 
 GENERATED = \
 			git-mark \
@@ -29,6 +30,10 @@ git-mark: common.sh git-mark.in.sh
 	chmod 755 $@
 
 git-ptt: common.sh git-ptt.in.sh
+	cat $^ > $@
+	chmod 755 $@
+
+git-resume: common.sh git-resume.in.sh
 	cat $^ > $@
 	chmod 755 $@
 
