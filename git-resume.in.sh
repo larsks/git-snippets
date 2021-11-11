@@ -32,6 +32,8 @@ while (( $# > 0 )); do
     esac
 done
 
+cd $(git rev-parse --show-toplevel)
+
 ref=${1:-HEAD}
 
 if [[ $use_commit -eq 1 ]]; then
