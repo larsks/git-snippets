@@ -75,7 +75,7 @@ done
 
 if [[ -z ${message_file+UNSET} ]]; then
     message_file="$(git rev-parse --git-dir)/COMMIT_EDITMSG"
-    git cat-file -p $oldref | sed '1,/^$/d' > $message_file
+    git cat-file -p $oldref | sed '1,/^$/d' | tr -d '\r' > $message_file
     ${VISUAL:-${EDITOR:-vi}} $message_file || DIE "failed to edit message"
 fi
 

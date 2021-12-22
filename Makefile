@@ -10,18 +10,24 @@ BINS = \
        git-ptt \
        git-set-message \
        git-synth \
-       git-pick \
+       git-pick-ref \
+       git-pick-commit \
        git-resume
 
 GENERATED = \
 			git-mark \
 			git-ptt \
 			git-set-message \
-			git-pick
+			git-pick-ref \
+			git-pick-commit
 
 all: $(BINS)
 
-git-pick: common.sh git-pick.in.sh
+git-pick-ref: common.sh git-pick-ref.in.sh
+	cat $^ > $@
+	chmod 755 $@
+
+git-pick-commit: common.sh git-pick-commit.in.sh
 	cat $^ > $@
 	chmod 755 $@
 
